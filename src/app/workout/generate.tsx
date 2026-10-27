@@ -28,6 +28,7 @@ import {
 import { useUserStore } from '@/store/user-store';
 import { useGarageStore } from '@/store/garage-store';
 import { useModelStore, simulateOrStartModelDownload, deleteLocalModel } from '@/ai/model-manager';
+import { useActiveWorkoutStore } from '@/store/active-workout-store';
 import { generateWorkout } from '@/ai/workout-service';
 import { GeneratedWorkoutPlan, WorkoutTargetSplit } from '@/ai/types';
 import { playChime, playCountdownBeep } from '@/services/sound-service';
@@ -254,8 +255,8 @@ export default function GenerateWorkoutScreen() {
               style={styles.startWorkoutButton}
               activeOpacity={0.8}
               onPress={() => {
-                playCountdownBeep();
-                speak(`Starting ${generatedPlan.title}. Get ready for exercise 1.`);
+                useActiveWorkoutStore.getState().startWorkout(generatedPlan);
+                router.push('/workout/player' as any);
               }}>
               <Play size={18} color="#FFFFFF" fill="#FFFFFF" />
               <Text style={styles.startWorkoutButtonText}>Start Interactive Workout</Text>

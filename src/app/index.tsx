@@ -22,9 +22,11 @@ import {
 
 import { useUserStore } from '@/store/user-store';
 import { useGarageStore } from '@/store/garage-store';
+import { useActiveWorkoutStore } from '@/store/active-workout-store';
+import { generateWorkout } from '@/ai/workout-service';
 import { calculateEquipmentCoverage, EquipmentCoverage } from '@/services/filter-service';
 import { OnboardingModal } from '@/components/onboarding-modal';
-import { playChime, playCountdownBeep } from '@/services/sound-service';
+import { playChime } from '@/services/sound-service';
 import { speak } from '@/services/speech-service';
 
 export default function HomeScreen() {
@@ -170,9 +172,17 @@ export default function HomeScreen() {
 
           <TouchableOpacity
             style={styles.startRoutineBtn}
-            onPress={() => {
-              playCountdownBeep();
-              speak('Starting workout. Get ready for Push-Ups.');
+            onPress={async () => {
+              const availableEquipment = useGarageStore.getState().getAllowedDbEquipmentKeys();
+              const plan = await generateWorkout({
+                split: 'full_body',
+                durationMinutes: preferredDurationMinutes,
+                intensity: experienceLevel,
+                goal,
+                availableEquipment,
+              });
+              useActiveWorkoutStore.getState().startWorkout(plan);
+              router.push('/workout/player' as any);
             }}>
             <Play size={16} color="#FFFFFF" fill="#FFFFFF" />
             <Text style={styles.startRoutineText}>Start Audio Guided Routine</Text>
