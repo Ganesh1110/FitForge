@@ -25,6 +25,7 @@ import {
 } from 'lucide-react-native';
 
 import { useActiveWorkoutStore } from '@/store/active-workout-store';
+import { useUserStore } from '@/store/user-store';
 import { VisualExerciseGuide } from '@/components/visual-exercise-guide';
 import { speak, stopSpeech } from '@/services/speech-service';
 
@@ -106,7 +107,9 @@ export default function WorkoutPlayerScreen() {
   // Completion Screen View
   if (phase === 'complete') {
     const totalMinutes = Math.max(1, Math.round(elapsedTotalSeconds / 60));
-    const estimatedCalories = Math.round(totalMinutes * 7.5);
+    const { weightKg } = useUserStore.getState();
+    const userWeight = weightKg || 75;
+    const estimatedCalories = Math.round(((6.0 * 3.5 * userWeight) / 200) * totalMinutes);
 
     return (
       <SafeAreaView style={styles.container}>

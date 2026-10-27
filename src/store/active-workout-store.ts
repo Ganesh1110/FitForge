@@ -3,6 +3,7 @@ import { GeneratedWorkoutPlan } from '@/ai/types';
 import { getDatabase } from '@/db/database';
 import { playChime, playCountdownBeep, playRestChime } from '@/services/sound-service';
 import { speak } from '@/services/speech-service';
+import { useUserStore } from '@/store/user-store';
 
 export type WorkoutPhase = 'prepare' | 'work' | 'rest' | 'complete';
 
@@ -22,6 +23,10 @@ interface ActiveWorkoutState {
   timeRemainingSeconds: number;
   phaseDurationSeconds: number;
   targetEndTime: number; // Date.now() + remainingMs (drift-safe)
+  lastAnnouncedSecond: number | null; // Prevents duplicate speech countdowns
+  workoutStartTime: number;
+  pausedTotalMs: number;
+  pauseStartTime: number | null;
   isPaused: boolean;
   elapsedTotalSeconds: number;
   completedSets: SetLogRecord[];
@@ -49,12 +54,17 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
   timeRemainingSeconds: PREPARE_DURATION_SECONDS,
   phaseDurationSeconds: PREPARE_DURATION_SECONDS,
   targetEndTime: Date.now() + PREPARE_DURATION_SECONDS * 1000,
+  lastAnnouncedSecond: null,
+  workoutStartTime: Date.now(),
+  pausedTotalMs: 0,
+  pauseStartTime: null,
   isPaused: false,
   elapsedTotalSeconds: 0,
   completedSets: [],
 
   startWorkout: (plan) => {
-    const targetEnd = Date.now() + PREPARE_DURATION_SECONDS * 1000;
+    const now = Date.now();
+    const targetEnd = now + PREPARE_DURATION_SECONDS * 1000;
     set({
       isActive: true,
       plan,
@@ -64,6 +74,10 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
       timeRemainingSeconds: PREPARE_DURATION_SECONDS,
       phaseDurationSeconds: PREPARE_DURATION_SECONDS,
       targetEndTime: targetEnd,
+      lastAnnouncedSecond: null,
+      workoutStartTime: now,
+      pausedTotalMs: 0,
+      pauseStartTime: null,
       isPaused: false,
       elapsedTotalSeconds: 0,
       completedSets: [],
@@ -75,16 +89,25 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
   },
 
   pauseWorkout: () => {
-    set({ isPaused: true });
+    set({
+      isPaused: true,
+      pauseStartTime: Date.now(),
+    });
     speak('Workout paused.');
   },
 
   resumeWorkout: () => {
     const state = get();
-    const newTargetEnd = Date.now() + state.timeRemainingSeconds * 1000;
+    const now = Date.now();
+    const pauseDuration = state.pauseStartTime ? now - state.pauseStartTime : 0;
+    const newPausedTotal = state.pausedTotalMs + pauseDuration;
+    const newTargetEnd = now + state.timeRemainingSeconds * 1000;
     set({
       isPaused: false,
+      pauseStartTime: null,
+      pausedTotalMs: newPausedTotal,
       targetEndTime: newTargetEnd,
+      lastAnnouncedSecond: null,
     });
     speak('Resuming.');
   },
@@ -93,23 +116,22 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
     const state = get();
     if (!state.isActive || state.isPaused || state.phase === 'complete') return;
 
-    // Total elapsed time
-    const newTotal = state.elapsedTotalSeconds + 1;
-
-    // Drift-safe remaining calculation
     const now = Date.now();
+    // Drift-safe remaining calculation
     const remaining = Math.max(0, Math.ceil((state.targetEndTime - now) / 1000));
 
-    // Audio countdown cues at 3, 2, 1
-    if (remaining === 3) {
-      playCountdownBeep();
-      speak('3');
-    } else if (remaining === 2) {
-      playCountdownBeep();
-      speak('2');
-    } else if (remaining === 1) {
-      playCountdownBeep();
-      speak('1');
+    // Drift-safe elapsed calculation
+    const elapsed = Math.max(
+      0,
+      Math.floor((now - state.workoutStartTime - state.pausedTotalMs) / 1000)
+    );
+
+    // Audio countdown cues at 3, 2, 1 - ONLY announce once per second!
+    if (state.lastAnnouncedSecond !== remaining) {
+      if (remaining === 3 || remaining === 2 || remaining === 1) {
+        playCountdownBeep();
+        speak(String(remaining));
+      }
     }
 
     if (remaining <= 0) {
@@ -118,7 +140,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
     } else {
       set({
         timeRemainingSeconds: remaining,
-        elapsedTotalSeconds: newTotal,
+        elapsedTotalSeconds: elapsed,
+        lastAnnouncedSecond: remaining,
       });
     }
   },
@@ -140,6 +163,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
         timeRemainingSeconds: workDuration,
         phaseDurationSeconds: workDuration,
         targetEndTime: targetEnd,
+        lastAnnouncedSecond: null,
       });
 
       playChime();
@@ -163,6 +187,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
         set({
           phase: 'complete',
           completedSets: [...state.completedSets, newRecord],
+          lastAnnouncedSecond: null,
         });
         playChime();
         speak('Workout complete! Outstanding effort!');
@@ -184,6 +209,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
         phaseDurationSeconds: restDuration,
         targetEndTime: targetEnd,
         completedSets: [...state.completedSets, newRecord],
+        lastAnnouncedSecond: null,
       });
 
       playRestChime();
@@ -208,7 +234,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
 
       const nextEx = state.plan.exercises[nextExIndex];
       if (!nextEx) {
-        set({ phase: 'complete' });
+        set({ phase: 'complete', lastAnnouncedSecond: null });
         return;
       }
 
@@ -222,6 +248,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
         timeRemainingSeconds: workDuration,
         phaseDurationSeconds: workDuration,
         targetEndTime: targetEnd,
+        lastAnnouncedSecond: null,
       });
 
       playChime();
@@ -248,6 +275,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
       timeRemainingSeconds: workDuration,
       phaseDurationSeconds: workDuration,
       targetEndTime: Date.now() + workDuration * 1000,
+      lastAnnouncedSecond: null,
     });
 
     playCountdownBeep();
@@ -259,6 +287,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
       isActive: false,
       plan: null,
       phase: 'complete',
+      lastAnnouncedSecond: null,
     });
   },
 
@@ -271,7 +300,11 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
       const logId = `log-${Date.now()}`;
       const now = new Date().toISOString();
       const totalMinutes = Math.max(1, Math.round(state.elapsedTotalSeconds / 60));
-      const caloriesBurned = Math.round(totalMinutes * 7.5); // ~7.5 kcal/min home circuit
+
+      // Calculate calorie burn based on user's actual body weight (MET ~6.0 for circuit training)
+      const { weightKg } = useUserStore.getState();
+      const userWeight = weightKg || 75;
+      const caloriesBurned = Math.round(((6.0 * 3.5 * userWeight) / 200) * totalMinutes);
 
       await db.runAsync(
         `INSERT INTO workout_logs (id, workout_id, started_at, completed_at, total_duration_seconds, calories_burned)
@@ -286,7 +319,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
         ]
       );
     } catch (e) {
-      console.warn('Failed to log completed workout:', e);
+      console.warn('Failed to record workout log:', e);
     }
   },
 }));

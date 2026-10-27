@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import Body, { ExtendedBodyPart, Slug } from 'react-native-body-highlighter';
 import { X, Sparkles, User } from 'lucide-react-native';
+import { useUserStore } from '@/store/user-store';
 
 export type BodyView = 'front' | 'back';
 export type BodyGender = 'male' | 'female';
@@ -67,8 +68,9 @@ export const MUSCLE_DETAILS: Record<string, { name: string; anatomicalName: stri
 };
 
 export function MuscleMap({ selectedMuscle, onSelectMuscle }: MuscleMapProps) {
+  const userGender = useUserStore((s) => s.gender);
   const [view, setView] = useState<BodyView>('front');
-  const [gender, setGender] = useState<BodyGender>('male');
+  const [gender, setGender] = useState<BodyGender>(userGender || 'male');
 
   const activeDef = MUSCLE_DETAILS[selectedMuscle];
 

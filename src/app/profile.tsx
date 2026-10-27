@@ -15,9 +15,21 @@ import {
   HardDrive,
   Wrench,
   Sliders,
+  Scale,
+  Ruler,
+  Clock,
+  Plus,
+  Minus,
+  Activity,
 } from 'lucide-react-native';
 
-import { useUserStore, FitnessGoal, ExperienceLevel } from '@/store/user-store';
+import {
+  useUserStore,
+  FitnessGoal,
+  ExperienceLevel,
+  UserGender,
+  calculateBmi,
+} from '@/store/user-store';
 import { useGarageStore } from '@/store/garage-store';
 import { getExercises } from '@/db/exercise-service';
 import { syncWithFreeExerciseDb } from '@/db/seeder';
@@ -41,11 +53,17 @@ const LEVEL_OPTIONS: { id: ExperienceLevel; label: string }[] = [
 export default function ProfileScreen() {
   const {
     name,
+    gender,
+    age,
+    weightKg,
+    heightCm,
     goal,
     experienceLevel,
     preferredDurationMinutes,
     setProfile,
   } = useUserStore();
+
+  const bmiInfo = calculateBmi(weightKg || 75, heightCm || 175);
 
   const { items: garageItems } = useGarageStore();
 
@@ -114,6 +132,104 @@ export default function ProfileScreen() {
             onPress={() => setShowOnboarding(true)}>
             <Sliders size={16} color="#9CA3AF" />
           </TouchableOpacity>
+        </View>
+
+        {/* Biometrics & Health Metrics Card */}
+        <Text style={styles.sectionTitle}>Body Biometrics</Text>
+        <View style={styles.biometricsCard}>
+          {/* Top row: Gender & BMI pill */}
+          <View style={styles.bioTopRow}>
+            {/* Gender Toggle */}
+            <View style={styles.bioGenderGroup}>
+              {(['male', 'female'] as UserGender[]).map((g) => {
+                const active = (gender || 'male') === g;
+                return (
+                  <TouchableOpacity
+                    key={g}
+                    style={[styles.bioGenderBtn, active && styles.bioGenderBtnActive]}
+                    onPress={() => setProfile({ gender: g })}>
+                    <Text style={[styles.bioGenderBtnText, active && styles.bioGenderBtnTextActive]}>
+                      {g === 'male' ? 'Male' : 'Female'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* BMI Pill */}
+            <View style={[styles.bioBmiPill, { borderColor: bmiInfo.color }]}>
+              <Activity size={13} color={bmiInfo.color} />
+              <Text style={[styles.bioBmiText, { color: bmiInfo.color }]}>
+                BMI {bmiInfo.bmi} • {bmiInfo.label}
+              </Text>
+            </View>
+          </View>
+
+          {/* Steppers Grid: Age, Weight, Height */}
+          <View style={styles.bioGrid}>
+            {/* Age */}
+            <View style={styles.bioTile}>
+              <View style={styles.bioTileHeader}>
+                <Clock size={13} color="#60A5FA" />
+                <Text style={styles.bioTileTitle}>Age</Text>
+              </View>
+              <Text style={styles.bioTileVal}>{age || 28} <Text style={styles.bioUnit}>yrs</Text></Text>
+              <View style={styles.miniStepper}>
+                <TouchableOpacity
+                  style={styles.miniStepBtn}
+                  onPress={() => setProfile({ age: Math.max(14, (age || 28) - 1) })}>
+                  <Minus size={12} color="#FFFFFF" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.miniStepBtn}
+                  onPress={() => setProfile({ age: Math.min(95, (age || 28) + 1) })}>
+                  <Plus size={12} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Weight */}
+            <View style={styles.bioTile}>
+              <View style={styles.bioTileHeader}>
+                <Scale size={13} color="#10B981" />
+                <Text style={styles.bioTileTitle}>Weight</Text>
+              </View>
+              <Text style={styles.bioTileVal}>{weightKg || 75} <Text style={styles.bioUnit}>kg</Text></Text>
+              <View style={styles.miniStepper}>
+                <TouchableOpacity
+                  style={styles.miniStepBtn}
+                  onPress={() => setProfile({ weightKg: Math.max(35, (weightKg || 75) - 1) })}>
+                  <Minus size={12} color="#FFFFFF" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.miniStepBtn}
+                  onPress={() => setProfile({ weightKg: Math.min(220, (weightKg || 75) + 1) })}>
+                  <Plus size={12} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Height */}
+            <View style={styles.bioTile}>
+              <View style={styles.bioTileHeader}>
+                <Ruler size={13} color="#F59E0B" />
+                <Text style={styles.bioTileTitle}>Height</Text>
+              </View>
+              <Text style={styles.bioTileVal}>{heightCm || 175} <Text style={styles.bioUnit}>cm</Text></Text>
+              <View style={styles.miniStepper}>
+                <TouchableOpacity
+                  style={styles.miniStepBtn}
+                  onPress={() => setProfile({ heightCm: Math.max(120, (heightCm || 175) - 1) })}>
+                  <Minus size={12} color="#FFFFFF" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.miniStepBtn}
+                  onPress={() => setProfile({ heightCm: Math.min(230, (heightCm || 175) + 1) })}>
+                  <Plus size={12} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
         </View>
 
         {/* Fitness Goals */}
@@ -237,7 +353,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 12,
-    paddingBottom: 120,
+    paddingBottom: 160,
   },
   header: {
     marginBottom: 20,
@@ -464,5 +580,108 @@ const styles = StyleSheet.create({
     color: '#38BDF8',
     fontSize: 13,
     fontWeight: '600',
+  },
+  biometricsCard: {
+    backgroundColor: '#161922',
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#242A38',
+    marginBottom: 24,
+  },
+  bioTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  bioGenderGroup: {
+    flexDirection: 'row',
+    backgroundColor: '#10131B',
+    padding: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#242A38',
+  },
+  bioGenderBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 7,
+  },
+  bioGenderBtnActive: {
+    backgroundColor: '#2563EB',
+  },
+  bioGenderBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94A3B8',
+  },
+  bioGenderBtnTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  bioBmiPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    backgroundColor: '#10131B',
+    borderWidth: 1,
+  },
+  bioBmiText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  bioGrid: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  bioTile: {
+    flex: 1,
+    backgroundColor: '#10131B',
+    borderRadius: 14,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#202636',
+  },
+  bioTileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 4,
+  },
+  bioTileTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  bioTileVal: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  bioUnit: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  miniStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#171D2A',
+    borderRadius: 8,
+    padding: 2,
+    borderWidth: 1,
+    borderColor: '#252F44',
+  },
+  miniStepBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
   },
 });
