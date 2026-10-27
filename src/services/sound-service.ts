@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 
 type SoundPlayer = {
   replayAsync: () => Promise<any>;
@@ -50,11 +50,35 @@ function playWebTone(frequency: number, duration: number, type: any = 'sine') {
   }
 }
 
+function isNativeModuleAvailable(moduleName: string): boolean {
+  if (Platform.OS === 'web') return false;
+  try {
+    const expoModules = (globalThis as any).expo?.modules;
+    if (expoModules && expoModules[moduleName]) {
+      return true;
+    }
+    if (NativeModules && NativeModules[moduleName]) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 function getAudioModule() {
   if (isAudioChecked) {
     return isNativeAudioSupported ? audioModule : null;
   }
   isAudioChecked = true;
+
+  // Crucial: check if ExponentAV native binary is present in the app binary before requiring
+  // (Prevents requireNativeModule fatal exception in Expo Go)
+  if (!isNativeModuleAvailable('ExponentAV')) {
+    isNativeAudioSupported = false;
+    audioModule = null;
+    return null;
+  }
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -64,7 +88,6 @@ function getAudioModule() {
       isNativeAudioSupported = true;
     }
   } catch {
-    // ExponentAV native module not present (e.g. in standard Expo Go)
     isNativeAudioSupported = false;
     audioModule = null;
   }
@@ -108,7 +131,7 @@ export async function playCountdownBeep() {
     }
     await beepSound?.playAsync();
   } catch {
-    // Audio playback error or missing native module
+    // Audio playback error
   }
 }
 
@@ -135,7 +158,7 @@ export async function playChime() {
     }
     await chimeSound?.playAsync();
   } catch {
-    // Audio playback error or missing native module
+    // Audio playback error
   }
 }
 
@@ -160,7 +183,7 @@ export async function playRestChime() {
     }
     await restSound?.playAsync();
   } catch {
-    // Audio playback error or missing native module
+    // Audio playback error
   }
 }
 

@@ -14,7 +14,6 @@ import {
   Volume2,
   CheckCircle,
   Flame,
-  ArrowRight,
   ShieldCheck,
   Play,
   Wrench,
@@ -94,15 +93,22 @@ export default function HomeScreen() {
               Tailored to your {preferredDurationMinutes}-min sessions and {garageItems.length} logged items in your Equipment Garage.
             </Text>
 
-            <TouchableOpacity
-              style={styles.heroButton}
-              activeOpacity={0.8}
-              onPress={() => router.push('/library')}>
-              <Text style={styles.heroButtonText}>
-                Browse {coverage?.accessibleExercises ?? 'All'} Compatible Exercises
-              </Text>
-              <ArrowRight size={16} color="#FFFFFF" />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+              <TouchableOpacity
+                style={[styles.heroButton, { flex: 1, backgroundColor: '#2563EB' }]}
+                activeOpacity={0.8}
+                onPress={() => router.push('/workout/generate' as any)}>
+                <Sparkles size={16} color="#FFFFFF" />
+                <Text style={styles.heroButtonText}>AI Workout Generator</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.heroButton, { backgroundColor: '#1E232E', paddingHorizontal: 12 }]}
+                activeOpacity={0.8}
+                onPress={() => router.push('/library')}>
+                <Text style={[styles.heroButtonText, { color: '#9CA3AF' }]}>Library</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
