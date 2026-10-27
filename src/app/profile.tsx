@@ -6,24 +6,19 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   User,
-  Database,
   Volume2,
   RefreshCw,
   HardDrive,
-  CheckCircle,
-  Sparkles,
-  Award,
 } from 'lucide-react-native';
 
 import { getExercises } from '@/db/exercise-service';
-import { syncWithFreeExerciseDb, seedDatabaseIfNeeded } from '@/db/seeder';
+import { syncWithFreeExerciseDb } from '@/db/seeder';
 import { speak } from '@/services/speech-service';
-import { playChime, playCountdownBeep } from '@/services/sound-service';
+import { playChime } from '@/services/sound-service';
 
 export default function ProfileScreen() {
   const [exerciseCount, setExerciseCount] = useState(0);

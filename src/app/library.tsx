@@ -18,17 +18,14 @@ import {
   Heart,
   Volume2,
   X,
-  Sparkles,
   Layers,
   Flame,
-  CheckCircle2,
 } from 'lucide-react-native';
 
 import { Exercise } from '@/db/schema';
 import { getExercises, toggleFavorite } from '@/db/exercise-service';
 import { speak, stopSpeech } from '@/services/speech-service';
 import { playCountdownBeep, playChime } from '@/services/sound-service';
-import { Colors } from '@/constants/theme';
 
 const MUSCLE_GROUPS = [
   'all',

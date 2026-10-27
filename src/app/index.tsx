@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -19,7 +18,6 @@ import {
   ArrowRight,
   ShieldCheck,
   Play,
-  RotateCw,
 } from 'lucide-react-native';
 
 import { getExercises } from '@/db/exercise-service';

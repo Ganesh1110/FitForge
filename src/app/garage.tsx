@@ -13,9 +13,6 @@ import {
   Dumbbell,
   Plus,
   Trash2,
-  Check,
-  Shield,
-  Layers,
   Wrench,
   CheckCircle2,
 } from 'lucide-react-native';
@@ -141,7 +138,7 @@ export default function GarageScreen() {
             <Wrench size={40} color="#4B5563" />
             <Text style={styles.emptyTitle}>Your Garage is empty</Text>
             <Text style={styles.emptySub}>
-              Add your dumbbells, pull-up bar, resistance bands, or walking pad. FitForge will filter out workouts you can't perform.
+              Add your dumbbells, pull-up bar, resistance bands, or walking pad. FitForge will filter out workouts you cannot perform.
             </Text>
           </View>
         ) : (
@@ -177,6 +174,38 @@ export default function GarageScreen() {
           <Text style={styles.modalSub}>
             Enter details so local AI knows your exact load limits
           </Text>
+
+          <Text style={styles.inputLabel}>Category</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+            {(['dumbbell', 'kettlebell', 'resistance_band', 'pullup_bar', 'bench', 'cardio'] as const).map((cat) => {
+              const active = selectedCategory === cat;
+              return (
+                <TouchableOpacity
+                  key={cat}
+                  style={[
+                    {
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderRadius: 8,
+                      backgroundColor: active ? '#2563EB' : '#1A1D24',
+                      borderWidth: 1,
+                      borderColor: active ? '#3B82F6' : '#2C313D',
+                    },
+                  ]}
+                  onPress={() => setSelectedCategory(cat)}>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontWeight: '600',
+                      color: active ? '#FFFFFF' : '#9CA3AF',
+                      textTransform: 'capitalize',
+                    }}>
+                    {cat.replace('_', ' ')}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           <Text style={styles.inputLabel}>Item Name</Text>
           <TextInput
