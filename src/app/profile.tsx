@@ -13,20 +13,46 @@ import {
   Volume2,
   RefreshCw,
   HardDrive,
+  Wrench,
+  Sliders,
 } from 'lucide-react-native';
 
+import { useUserStore, FitnessGoal, ExperienceLevel } from '@/store/user-store';
+import { useGarageStore } from '@/store/garage-store';
 import { getExercises } from '@/db/exercise-service';
 import { syncWithFreeExerciseDb } from '@/db/seeder';
 import { speak } from '@/services/speech-service';
 import { playChime } from '@/services/sound-service';
+import { OnboardingModal } from '@/components/onboarding-modal';
+
+const GOAL_OPTIONS: { id: FitnessGoal; label: string; desc: string }[] = [
+  { id: 'hypertrophy', label: 'Muscle Build', desc: 'Hypertrophy rep ranges (8-12)' },
+  { id: 'strength', label: 'Raw Strength', desc: 'Heavy progressive overload (4-6)' },
+  { id: 'fat_loss', label: 'Fat Loss', desc: 'High intensity metabolic circuits' },
+  { id: 'endurance', label: 'Endurance', desc: 'Sustained aerobic conditioning' },
+];
+
+const LEVEL_OPTIONS: { id: ExperienceLevel; label: string }[] = [
+  { id: 'beginner', label: 'Beginner' },
+  { id: 'intermediate', label: 'Intermediate' },
+  { id: 'advanced', label: 'Advanced' },
+];
 
 export default function ProfileScreen() {
+  const {
+    name,
+    goal,
+    experienceLevel,
+    preferredDurationMinutes,
+    setProfile,
+  } = useUserStore();
+
+  const { items: garageItems } = useGarageStore();
+
   const [exerciseCount, setExerciseCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
-
-  const [fitnessGoal, setFitnessGoal] = useState<'hypertrophy' | 'strength' | 'fat_loss' | 'endurance'>('hypertrophy');
-  const [experienceLevel, setExperienceLevel] = useState<'beginner' | 'intermediate' | 'expert'>('intermediate');
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const loadDbStats = async () => {
     try {
@@ -69,7 +95,7 @@ export default function ProfileScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <Text style={styles.title}>Profile & Settings</Text>
-          <Text style={styles.subtitle}>Preferences & Local Engine Settings</Text>
+          <Text style={styles.subtitle}>Personal goals and local database management</Text>
         </View>
 
         {/* Profile Card */}
@@ -77,27 +103,29 @@ export default function ProfileScreen() {
           <View style={styles.avatar}>
             <User size={28} color="#60A5FA" />
           </View>
-          <View>
-            <Text style={styles.userName}>FitForge Athlete</Text>
-            <Text style={styles.userSub}>Local-First Private Account</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.userName}>{name}</Text>
+            <Text style={styles.userSub}>
+              {experienceLevel.toUpperCase()} • {preferredDurationMinutes} MIN SESSIONS
+            </Text>
           </View>
+          <TouchableOpacity
+            style={styles.reopenOnboardingBtn}
+            onPress={() => setShowOnboarding(true)}>
+            <Sliders size={16} color="#9CA3AF" />
+          </TouchableOpacity>
         </View>
 
         {/* Fitness Goals */}
         <Text style={styles.sectionTitle}>Fitness Focus</Text>
         <View style={styles.optionsGrid}>
-          {[
-            { id: 'hypertrophy', label: 'Muscle Build', desc: 'Hypertrophy rep ranges' },
-            { id: 'strength', label: 'Raw Strength', desc: 'Heavy compounds & power' },
-            { id: 'fat_loss', label: 'Fat Loss', desc: 'High intensity circuits' },
-            { id: 'endurance', label: 'Endurance', desc: 'Sustained stamina work' },
-          ].map((g) => {
-            const active = fitnessGoal === g.id;
+          {GOAL_OPTIONS.map((g) => {
+            const active = goal === g.id;
             return (
               <TouchableOpacity
                 key={g.id}
                 style={[styles.optionCard, active && styles.optionCardActive]}
-                onPress={() => setFitnessGoal(g.id as any)}>
+                onPress={() => setProfile({ goal: g.id })}>
                 <Text style={[styles.optionLabel, active && styles.optionLabelActive]}>
                   {g.label}
                 </Text>
@@ -110,23 +138,36 @@ export default function ProfileScreen() {
         {/* Experience Level */}
         <Text style={styles.sectionTitle}>Experience Level</Text>
         <View style={styles.levelRow}>
-          {[
-            { id: 'beginner', label: 'Beginner' },
-            { id: 'intermediate', label: 'Intermediate' },
-            { id: 'expert', label: 'Advanced' },
-          ].map((lvl) => {
+          {LEVEL_OPTIONS.map((lvl) => {
             const active = experienceLevel === lvl.id;
             return (
               <TouchableOpacity
                 key={lvl.id}
                 style={[styles.levelBtn, active && styles.levelBtnActive]}
-                onPress={() => setExperienceLevel(lvl.id as any)}>
+                onPress={() => setProfile({ experienceLevel: lvl.id })}>
                 <Text style={[styles.levelBtnText, active && styles.levelBtnTextActive]}>
                   {lvl.label}
                 </Text>
               </TouchableOpacity>
             );
           })}
+        </View>
+
+        {/* Equipment Summary */}
+        <Text style={styles.sectionTitle}>Equipment Garage Summary</Text>
+        <View style={styles.gearSummaryBox}>
+          <View style={styles.gearSummaryLeft}>
+            <Wrench size={20} color="#10B981" />
+            <View>
+              <Text style={styles.gearSummaryTitle}>
+                {garageItems.length} Home Items Logged
+              </Text>
+              <Text style={styles.gearSummarySub}>
+                {garageItems.map((i) => i.name).slice(0, 3).join(', ')}
+                {garageItems.length > 3 ? '...' : ''}
+              </Text>
+            </View>
+          </View>
         </View>
 
         {/* Database Management */}
@@ -179,6 +220,11 @@ export default function ProfileScreen() {
           </View>
         </View>
       </ScrollView>
+
+      <OnboardingModal
+        visible={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -232,10 +278,15 @@ const styles = StyleSheet.create({
     color: '#F9FAFB',
   },
   userSub: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#10B981',
-    fontWeight: '600',
+    fontWeight: '700',
     marginTop: 2,
+  },
+  reopenOnboardingBtn: {
+    padding: 8,
+    borderRadius: 10,
+    backgroundColor: '#1E232E',
   },
   sectionTitle: {
     fontSize: 16,
@@ -301,6 +352,29 @@ const styles = StyleSheet.create({
   levelBtnTextActive: {
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+  gearSummaryBox: {
+    backgroundColor: '#161922',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#242A38',
+    marginBottom: 24,
+  },
+  gearSummaryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  gearSummaryTitle: {
+    color: '#F9FAFB',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  gearSummarySub: {
+    color: '#9CA3AF',
+    fontSize: 12,
+    marginTop: 2,
   },
   dbCard: {
     backgroundColor: '#161922',

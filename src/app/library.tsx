@@ -10,8 +10,10 @@ import {
   ScrollView,
   ActivityIndicator,
   Platform,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import {
   Search,
   Dumbbell,
@@ -20,10 +22,15 @@ import {
   X,
   Layers,
   Flame,
+  ShieldCheck,
+  Wrench,
+  Check,
 } from 'lucide-react-native';
 
 import { Exercise } from '@/db/schema';
-import { getExercises, toggleFavorite } from '@/db/exercise-service';
+import { toggleFavorite } from '@/db/exercise-service';
+import { getExercisesForUserGarage } from '@/services/filter-service';
+import { useGarageStore } from '@/store/garage-store';
 import { speak, stopSpeech } from '@/services/speech-service';
 import { playCountdownBeep, playChime } from '@/services/sound-service';
 
@@ -42,31 +49,26 @@ const MUSCLE_GROUPS = [
   'cardiovascular system',
 ];
 
-const EQUIPMENT_OPTIONS = [
-  'all',
-  'body only',
-  'dumbbell',
-  'bands',
-  'kettlebells',
-  'pull-up bar',
-  'walking pad',
-];
-
 export default function LibraryScreen() {
+  const router = useRouter();
+  const { getAllowedDbEquipmentKeys } = useGarageStore();
+
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedMuscle, setSelectedMuscle] = useState('all');
-  const [selectedEquipment, setSelectedEquipment] = useState('all');
+  const [onlyMyGear, setOnlyMyGear] = useState(true);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
+
+  const allowedKeys = getAllowedDbEquipmentKeys();
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getExercises({
+      const data = await getExercisesForUserGarage({
         search,
         muscle: selectedMuscle,
-        equipment: selectedEquipment,
+        strictGearOnly: onlyMyGear,
       });
       setExercises(data);
     } catch (err) {
@@ -74,7 +76,7 @@ export default function LibraryScreen() {
     } finally {
       setLoading(false);
     }
-  }, [search, selectedMuscle, selectedEquipment]);
+  }, [search, selectedMuscle, onlyMyGear]);
 
   useEffect(() => {
     loadData();
@@ -100,6 +102,8 @@ export default function LibraryScreen() {
 
   const renderExerciseItem = ({ item }: { item: Exercise }) => {
     const isBodyweight = item.equipment.toLowerCase().includes('body');
+    const isOwned = allowedKeys.includes(item.equipment);
+
     return (
       <TouchableOpacity
         style={styles.card}
@@ -120,6 +124,12 @@ export default function LibraryScreen() {
               <View style={styles.levelBadge}>
                 <Text style={styles.levelBadgeText}>{item.level}</Text>
               </View>
+              {isOwned && (
+                <View style={styles.ownedBadge}>
+                  <Check size={10} color="#10B981" />
+                  <Text style={styles.ownedBadgeText}>In Garage</Text>
+                </View>
+              )}
             </View>
           </View>
           <TouchableOpacity
@@ -145,10 +155,25 @@ export default function LibraryScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Search Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Exercise Library</Text>
-        <Text style={styles.headerSubtitle}>
-          {exercises.length} offline exercises ready
-        </Text>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.headerTitle}>Exercise Library</Text>
+            <Text style={styles.headerSubtitle}>
+              {exercises.length} {onlyMyGear ? 'compatible home' : 'offline'} exercises
+            </Text>
+          </View>
+
+          {/* Garage Toggle Switch */}
+          <View style={styles.filterToggleRow}>
+            <Text style={styles.filterToggleLabel}>My Gear Only</Text>
+            <Switch
+              value={onlyMyGear}
+              onValueChange={setOnlyMyGear}
+              trackColor={{ false: '#262A35', true: '#2563EB' }}
+              thumbColor={onlyMyGear ? '#FFFFFF' : '#9CA3AF'}
+            />
+          </View>
+        </View>
 
         <View style={styles.searchBar}>
           <Search size={18} color="#9CA3AF" />
@@ -185,32 +210,6 @@ export default function LibraryScreen() {
         </ScrollView>
       </View>
 
-      {/* Equipment Filter Scroll */}
-      <View style={styles.equipmentFilterSection}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterScroll}>
-          {EQUIPMENT_OPTIONS.map((eq) => {
-            const active = selectedEquipment === eq;
-            return (
-              <TouchableOpacity
-                key={eq}
-                style={[styles.filterChipAlt, active && styles.filterChipAltActive]}
-                onPress={() => setSelectedEquipment(eq)}>
-                <Text
-                  style={[
-                    styles.filterChipAltText,
-                    active && styles.filterChipAltTextActive,
-                  ]}>
-                  {eq === 'all' ? 'All Gear' : eq}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-
       {/* Exercise List */}
       {loading ? (
         <View style={styles.centerContainer}>
@@ -220,10 +219,20 @@ export default function LibraryScreen() {
       ) : exercises.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Dumbbell size={48} color="#4B5563" />
-          <Text style={styles.emptyTitle}>No exercises found</Text>
+          <Text style={styles.emptyTitle}>No matching exercises</Text>
           <Text style={styles.emptySubtitle}>
-            Try clearing filters or searching for another term.
+            {onlyMyGear
+              ? 'None of your logged home equipment matches this filter. Try switching "My Gear Only" off, or add new items in the Garage.'
+              : 'Try clearing your search term or muscle filter.'}
           </Text>
+          {onlyMyGear && (
+            <TouchableOpacity
+              style={styles.goToGarageBtn}
+              onPress={() => router.push('/garage')}>
+              <Wrench size={16} color="#FFFFFF" />
+              <Text style={styles.goToGarageBtnText}>Open Equipment Garage</Text>
+            </TouchableOpacity>
+          )}
         </View>
       ) : (
         <FlatList
@@ -297,6 +306,20 @@ export default function LibraryScreen() {
                     {selectedExercise.level.toUpperCase()}
                   </Text>
                 </View>
+                {allowedKeys.includes(selectedExercise.equipment) ? (
+                  <View style={[styles.modalBadge, { borderColor: '#064E3B', backgroundColor: '#064E3B' }]}>
+                    <ShieldCheck size={14} color="#6EE7B7" />
+                    <Text style={[styles.modalBadgeText, { color: '#6EE7B7' }]}>
+                      READY IN GARAGE
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={[styles.modalBadge, { borderColor: '#7F1D1D', backgroundColor: '#450A0A' }]}>
+                    <Text style={[styles.modalBadgeText, { color: '#FCA5A5' }]}>
+                      GEAR NEEDED: {selectedExercise.equipment.toUpperCase()}
+                    </Text>
+                  </View>
+                )}
               </View>
 
               {/* Muscle Breakdown */}
@@ -372,6 +395,12 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 8,
   },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   headerTitle: {
     fontSize: 28,
     fontWeight: '800',
@@ -379,10 +408,25 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#9CA3AF',
     marginTop: 2,
-    marginBottom: 14,
+  },
+  filterToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#181A20',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#262A35',
+  },
+  filterToggleLabel: {
+    color: '#9CA3AF',
+    fontSize: 12,
+    fontWeight: '600',
   },
   searchBar: {
     flexDirection: 'row',
@@ -402,9 +446,6 @@ const styles = StyleSheet.create({
   },
   filterSection: {
     marginTop: 8,
-  },
-  equipmentFilterSection: {
-    marginTop: 6,
     marginBottom: 8,
   },
   filterScroll: {
@@ -430,26 +471,6 @@ const styles = StyleSheet.create({
   },
   filterChipTextActive: {
     color: '#FFFFFF',
-  },
-  filterChipAlt: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 8,
-    backgroundColor: '#181A20',
-    borderWidth: 1,
-    borderColor: '#262A35',
-  },
-  filterChipAltActive: {
-    backgroundColor: '#1E293B',
-    borderColor: '#38BDF8',
-  },
-  filterChipAltText: {
-    fontSize: 12,
-    color: '#94A3B8',
-  },
-  filterChipAltTextActive: {
-    color: '#38BDF8',
-    fontWeight: '600',
   },
   listContent: {
     paddingHorizontal: 20,
@@ -522,6 +543,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textTransform: 'capitalize',
   },
+  ownedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#064E3B',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  ownedBadgeText: {
+    color: '#6EE7B7',
+    fontSize: 10,
+    fontWeight: '700',
+  },
   favoriteButton: {
     padding: 4,
   },
@@ -546,7 +581,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 40,
-    marginTop: 60,
+    marginTop: 50,
   },
   emptyTitle: {
     fontSize: 18,
@@ -555,10 +590,26 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   emptySubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6B7280',
     textAlign: 'center',
     marginTop: 6,
+    lineHeight: 18,
+  },
+  goToGarageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginTop: 16,
+  },
+  goToGarageBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 13,
   },
   modalContainer: {
     flex: 1,

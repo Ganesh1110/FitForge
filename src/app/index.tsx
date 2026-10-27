@@ -11,43 +11,53 @@ import { useRouter } from 'expo-router';
 import {
   Dumbbell,
   Sparkles,
-  Zap,
   Volume2,
   CheckCircle,
   Flame,
   ArrowRight,
   ShieldCheck,
   Play,
+  Wrench,
+  Target,
 } from 'lucide-react-native';
 
-import { getExercises } from '@/db/exercise-service';
-import { seedDatabaseIfNeeded } from '@/db/seeder';
+import { useUserStore } from '@/store/user-store';
+import { useGarageStore } from '@/store/garage-store';
+import { calculateEquipmentCoverage, EquipmentCoverage } from '@/services/filter-service';
+import { OnboardingModal } from '@/components/onboarding-modal';
 import { playChime, playCountdownBeep } from '@/services/sound-service';
 import { speak } from '@/services/speech-service';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const [exerciseCount, setExerciseCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+
+  const { isOnboarded, goal, experienceLevel, preferredDurationMinutes } = useUserStore();
+  const { items: garageItems } = useGarageStore();
+
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [coverage, setCoverage] = useState<EquipmentCoverage | null>(null);
 
   useEffect(() => {
-    async function loadStats() {
+    if (!isOnboarded) {
+      setShowOnboarding(true);
+    }
+  }, [isOnboarded]);
+
+  useEffect(() => {
+    async function updateStats() {
       try {
-        await seedDatabaseIfNeeded();
-        const exercises = await getExercises();
-        setExerciseCount(exercises.length);
+        const cov = await calculateEquipmentCoverage();
+        setCoverage(cov);
       } catch (e) {
-        console.warn('Home screen stat load failed:', e);
-      } finally {
-        setLoading(false);
+        console.warn(e);
       }
     }
-    loadStats();
-  }, []);
+    updateStats();
+  }, [garageItems]);
 
   const handleTestAudio = () => {
     playChime();
-    speak('Welcome to FitForge. Your local AI fitness engine is ready.');
+    speak(`FitForge local engine is active. Target focus: ${goal}. Equipment garage ready.`);
   };
 
   return (
@@ -70,23 +80,27 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Quick Hero Banner */}
+        {/* Hero Banner with User's Configured Setup */}
         <View style={styles.heroBanner}>
           <View style={styles.heroContent}>
             <View style={styles.heroTag}>
               <Sparkles size={14} color="#F59E0B" />
-              <Text style={styles.heroTagText}>Smart Home Fitness</Text>
+              <Text style={styles.heroTagText}>
+                {goal.toUpperCase()} • {experienceLevel.toUpperCase()}
+              </Text>
             </View>
-            <Text style={styles.heroTitle}>Work out with what you actually have.</Text>
+            <Text style={styles.heroTitle}>Your Home Routine</Text>
             <Text style={styles.heroSubtitle}>
-              Granular gear tracking, offline SQLite database, zero hallucination routines.
+              Tailored to your {preferredDurationMinutes}-min sessions and {garageItems.length} logged items in your Equipment Garage.
             </Text>
 
             <TouchableOpacity
               style={styles.heroButton}
               activeOpacity={0.8}
               onPress={() => router.push('/library')}>
-              <Text style={styles.heroButtonText}>Explore {exerciseCount} Exercises</Text>
+              <Text style={styles.heroButtonText}>
+                Browse {coverage?.accessibleExercises ?? 'All'} Compatible Exercises
+              </Text>
               <ArrowRight size={16} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
@@ -95,37 +109,41 @@ export default function HomeScreen() {
         {/* Status Metrics */}
         <View style={styles.metricsRow}>
           <View style={styles.metricCard}>
-            <Dumbbell size={22} color="#3B82F6" />
-            <Text style={styles.metricNumber}>{loading ? '...' : exerciseCount}</Text>
-            <Text style={styles.metricLabel}>Offline Catalog</Text>
+            <Dumbbell size={20} color="#3B82F6" />
+            <Text style={styles.metricNumber}>
+              {coverage ? `${coverage.accessibleExercises}/${coverage.totalExercises}` : '...'}
+            </Text>
+            <Text style={styles.metricLabel}>Unlocked Exercises</Text>
           </View>
 
           <View style={styles.metricCard}>
-            <Zap size={22} color="#10B981" />
-            <Text style={styles.metricNumber}>Instant</Text>
-            <Text style={styles.metricLabel}>Local SQLite Engine</Text>
+            <Wrench size={20} color="#10B981" />
+            <Text style={styles.metricNumber}>{garageItems.length}</Text>
+            <Text style={styles.metricLabel}>Garage Items</Text>
           </View>
 
           <View style={styles.metricCard}>
-            <Flame size={22} color="#F97316" />
-            <Text style={styles.metricNumber}>Phase 1</Text>
-            <Text style={styles.metricLabel}>Engine Active</Text>
+            <Target size={20} color="#F59E0B" />
+            <Text style={styles.metricNumber}>{coverage ? `${coverage.coveragePercentage}%` : '...'}</Text>
+            <Text style={styles.metricLabel}>Gear Coverage</Text>
           </View>
         </View>
 
         {/* Today's Recommended Routine Card */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Featured Daily Routine</Text>
+          <Text style={styles.sectionTitle}>Today&apos;s Recommended Routine</Text>
         </View>
 
         <View style={styles.routineCard}>
           <View style={styles.routineHeader}>
             <View>
-              <Text style={styles.routineName}>15-Min Calisthenics & Core</Text>
-              <Text style={styles.routineDetail}>3 Rounds • Bodyweight Only</Text>
+              <Text style={styles.routineName}>Full-Body Home Circuit</Text>
+              <Text style={styles.routineDetail}>
+                {preferredDurationMinutes} Min • {goal.replace('_', ' ')}
+              </Text>
             </View>
             <View style={styles.timeBadge}>
-              <Text style={styles.timeBadgeText}>15 MIN</Text>
+              <Text style={styles.timeBadgeText}>{preferredDurationMinutes} MIN</Text>
             </View>
           </View>
 
@@ -136,7 +154,7 @@ export default function HomeScreen() {
             </View>
             <View style={styles.previewItem}>
               <CheckCircle size={14} color="#10B981" />
-              <Text style={styles.previewItemText}>Bodyweight Air Squats (15 reps)</Text>
+              <Text style={styles.previewItemText}>Air Squats (15 reps)</Text>
             </View>
             <View style={styles.previewItem}>
               <CheckCircle size={14} color="#10B981" />
@@ -148,42 +166,48 @@ export default function HomeScreen() {
             style={styles.startRoutineBtn}
             onPress={() => {
               playCountdownBeep();
-              speak('Starting 15 minute calisthenics routine. First exercise: Standard push-ups.');
+              speak('Starting workout. Get ready for Push-Ups.');
             }}>
             <Play size={16} color="#FFFFFF" fill="#FFFFFF" />
             <Text style={styles.startRoutineText}>Start Audio Guided Routine</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Phase Roadmap Quick Links */}
+        {/* Quick Hub Navigation */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Quick Navigation</Text>
+          <Text style={styles.sectionTitle}>Equipment & Setup Hub</Text>
         </View>
 
         <View style={styles.navGrid}>
           <TouchableOpacity
             style={styles.navTile}
             activeOpacity={0.7}
-            onPress={() => router.push('/library')}>
-            <View style={[styles.tileIcon, { backgroundColor: '#1E3A8A' }]}>
-              <Dumbbell size={20} color="#60A5FA" />
+            onPress={() => router.push('/garage')}>
+            <View style={[styles.tileIcon, { backgroundColor: '#064E3B' }]}>
+              <Wrench size={20} color="#34D399" />
             </View>
-            <Text style={styles.tileTitle}>Exercise Library</Text>
-            <Text style={styles.tileDesc}>Full offline catalog with audio cues</Text>
+            <Text style={styles.tileTitle}>Equipment Garage</Text>
+            <Text style={styles.tileDesc}>Edit weights, plates, and bands</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.navTile}
             activeOpacity={0.7}
-            onPress={() => router.push('/garage')}>
-            <View style={[styles.tileIcon, { backgroundColor: '#064E3B' }]}>
-              <Zap size={20} color="#34D399" />
+            onPress={() => setShowOnboarding(true)}>
+            <View style={[styles.tileIcon, { backgroundColor: '#1E3A8A' }]}>
+              <Flame size={20} color="#60A5FA" />
             </View>
-            <Text style={styles.tileTitle}>Equipment Garage</Text>
-            <Text style={styles.tileDesc}>Manage home weights & gear</Text>
+            <Text style={styles.tileTitle}>Goals & Preferences</Text>
+            <Text style={styles.tileDesc}>Adjust training focus & split</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Onboarding Flow Modal */}
+      <OnboardingModal
+        visible={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -253,9 +277,9 @@ const styles = StyleSheet.create({
   },
   heroTagText: {
     color: '#F59E0B',
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   heroTitle: {
     fontSize: 22,
@@ -287,20 +311,20 @@ const styles = StyleSheet.create({
   },
   metricsRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
     marginBottom: 24,
   },
   metricCard: {
     flex: 1,
     backgroundColor: '#161922',
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: 14,
+    padding: 12,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#242A38',
   },
   metricNumber: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
     color: '#F9FAFB',
     marginTop: 6,
@@ -315,7 +339,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '800',
     color: '#F3F4F6',
   },
@@ -342,6 +366,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#9CA3AF',
     marginTop: 2,
+    textTransform: 'capitalize',
   },
   timeBadge: {
     backgroundColor: '#1F2937',
