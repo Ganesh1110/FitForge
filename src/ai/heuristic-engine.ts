@@ -53,30 +53,45 @@ export function generateHeuristicWorkoutPlan(
     }
   }
 
-  // Configure sets, reps, and rest based on goal & intensity
-  let sets = 3;
+  // DAREBEE-style Level Scaling (Level 1 = 3 rounds, Level 2 = 5 rounds, Level 3 = 7 rounds)
+  let rounds = 3;
+  let darebeeLevel = request.circuitLevel || 'level_1';
+
+  if (request.circuitLevel === 'level_1') {
+    rounds = 3;
+  } else if (request.circuitLevel === 'level_2') {
+    rounds = 5;
+  } else if (request.circuitLevel === 'level_3') {
+    rounds = 7;
+  } else {
+    if (intensity === 'advanced' || durationMinutes >= 45) {
+      rounds = 5;
+      darebeeLevel = 'level_2';
+    } else {
+      rounds = 3;
+      darebeeLevel = 'level_1';
+    }
+  }
+
+  const sets = rounds;
   let reps = 10;
   let restSeconds = 60;
 
   switch (goal) {
     case 'strength':
-      sets = intensity === 'advanced' ? 4 : 3;
       reps = 6;
       restSeconds = 90;
       break;
     case 'hypertrophy':
-      sets = 3;
       reps = 10;
       restSeconds = 60;
       break;
     case 'fat_loss':
-      sets = 3;
       reps = 15;
       restSeconds = 35;
       break;
     case 'endurance':
     case 'mobility':
-      sets = 3;
       reps = 16;
       restSeconds = 30;
       break;
@@ -84,7 +99,7 @@ export function generateHeuristicWorkoutPlan(
 
   const equipmentUsedSet = new Set<string>();
 
-  const exercises: GeneratedExerciseItem[] = selectedList.map((ex, index) => {
+  const exercises: GeneratedExerciseItem[] = selectedList.map((ex, _index) => {
     equipmentUsedSet.add(ex.equipment);
 
     // Adjust reps for isometric holds (like planks)
@@ -107,7 +122,7 @@ export function generateHeuristicWorkoutPlan(
     return {
       exerciseId: ex.id,
       exerciseName: ex.name,
-      sets: index === 0 && goal === 'strength' ? sets + 1 : sets, // optional extra set on first compound
+      sets,
       reps: effectiveReps,
       restSeconds,
       notes,
@@ -117,13 +132,20 @@ export function generateHeuristicWorkoutPlan(
   });
 
   const titles: Record<WorkoutTargetSplit, string> = {
-    full_body: 'Full-Body Home Circuit',
+    full_body: 'Full-Body Circuit',
     upper_body: 'Upper-Body Hypertrophy',
-    lower_body: 'Lower-Body Power & Legs',
+    lower_body: 'Lower-Body Power',
     push: 'Push & Core Routine',
     pull: 'Pull & Back Power',
     core_cardio: 'Metabolic Core & Conditioning',
   };
+
+  const levelTag =
+    darebeeLevel === 'level_3'
+      ? 'Level III (7 Rounds)'
+      : darebeeLevel === 'level_2'
+      ? 'Level II (5 Rounds)'
+      : 'Level I (3 Rounds)';
 
   const descriptions: Record<WorkoutTargetSplit, string> = {
     full_body: 'Total-body balance targeting compound push, pull, leg, and core movements.',
@@ -136,11 +158,13 @@ export function generateHeuristicWorkoutPlan(
 
   return {
     id: `plan-${Date.now()}`,
-    title: titles[split] || 'Custom Home Workout',
+    title: `${titles[split] || 'Custom Home Workout'} • ${levelTag}`,
     description: descriptions[split] || 'Tailored to your equipment inventory.',
     targetSplit: split,
     estimatedMinutes: durationMinutes,
     difficulty: intensity,
+    circuitLevel: darebeeLevel,
+    totalRounds: rounds,
     exercises,
     equipmentUsed: Array.from(equipmentUsedSet),
     generatedAt: new Date().toISOString(),

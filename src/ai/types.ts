@@ -8,12 +8,15 @@ export type WorkoutTargetSplit =
   | 'pull'
   | 'core_cardio';
 
+export type DarebeeLevel = 'level_1' | 'level_2' | 'level_3';
+
 export interface WorkoutGenerationRequest {
   split: WorkoutTargetSplit;
   durationMinutes: number; // 15, 30, 45, 60
   intensity: ExperienceLevel;
   goal: FitnessGoal;
   availableEquipment: string[]; // ['body only', 'dumbbell', 'bands', ...]
+  circuitLevel?: DarebeeLevel; // DAREBEE circuit scaling: Level 1 (3 rounds), Level 2 (5 rounds), Level 3 (7 rounds)
   customNotes?: string;
 }
 
@@ -35,6 +38,8 @@ export interface GeneratedWorkoutPlan {
   targetSplit: WorkoutTargetSplit;
   estimatedMinutes: number;
   difficulty: ExperienceLevel;
+  circuitLevel?: DarebeeLevel;
+  totalRounds: number;
   exercises: GeneratedExerciseItem[];
   equipmentUsed: string[];
   generatedAt: string;

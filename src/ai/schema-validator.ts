@@ -115,6 +115,8 @@ export function validateAndSanitizeAIOutput(
     targetSplit: (parsed.targetSplit as WorkoutTargetSplit) || fallbackSplit,
     estimatedMinutes: parseInt(parsed.estimatedMinutes, 10) || fallbackDuration,
     difficulty: (parsed.difficulty as ExperienceLevel) || fallbackDifficulty,
+    circuitLevel: parsed.circuitLevel || 'level_1',
+    totalRounds: parseInt(parsed.totalRounds, 10) || 3,
     exercises: validatedExercises,
     equipmentUsed: Array.from(equipmentUsedSet),
     generatedAt: new Date().toISOString(),

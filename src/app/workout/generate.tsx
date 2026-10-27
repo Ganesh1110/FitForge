@@ -30,7 +30,7 @@ import { useGarageStore } from '@/store/garage-store';
 import { useModelStore, simulateOrStartModelDownload, deleteLocalModel } from '@/ai/model-manager';
 import { useActiveWorkoutStore } from '@/store/active-workout-store';
 import { generateWorkout } from '@/ai/workout-service';
-import { GeneratedWorkoutPlan, WorkoutTargetSplit } from '@/ai/types';
+import { GeneratedWorkoutPlan, WorkoutTargetSplit, DarebeeLevel } from '@/ai/types';
 import { playChime, playCountdownBeep } from '@/services/sound-service';
 import { speak } from '@/services/speech-service';
 
@@ -53,6 +53,7 @@ export default function GenerateWorkoutScreen() {
   const { model, activeEngine, setActiveEngine } = useModelStore();
 
   const [selectedSplit, setSelectedSplit] = useState<WorkoutTargetSplit>('full_body');
+  const [circuitLevel, setCircuitLevel] = useState<DarebeeLevel>('level_2');
   const [durationMinutes, setDurationMinutes] = useState(30);
   const [loading, setLoading] = useState(false);
   const [generatedPlan, setGeneratedPlan] = useState<GeneratedWorkoutPlan | null>(null);
@@ -72,6 +73,7 @@ export default function GenerateWorkoutScreen() {
         durationMinutes,
         intensity: experienceLevel,
         goal,
+        circuitLevel,
         availableEquipment,
       });
 
@@ -155,6 +157,32 @@ export default function GenerateWorkoutScreen() {
                   ]}>
                   {d} Min
                 </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* DAREBEE Level Scaler */}
+        <Text style={styles.sectionHeading}>DAREBEE Circuit Level (Rounds)</Text>
+        <View style={styles.darebeeRow}>
+          {[
+            { id: 'level_1', title: 'Level I', rounds: '3 Rounds', desc: 'Standard Light' },
+            { id: 'level_2', title: 'Level II', rounds: '5 Rounds', desc: 'Solid Volume' },
+            { id: 'level_3', title: 'Level III', rounds: '7 Rounds', desc: 'Beast Mode' },
+          ].map((lvl) => {
+            const active = circuitLevel === lvl.id;
+            return (
+              <TouchableOpacity
+                key={lvl.id}
+                style={[styles.darebeeCard, active && styles.darebeeCardActive]}
+                onPress={() => setCircuitLevel(lvl.id as DarebeeLevel)}>
+                <Text style={[styles.darebeeTitle, active && styles.darebeeTitleActive]}>
+                  {lvl.title}
+                </Text>
+                <Text style={[styles.darebeeRounds, active && styles.darebeeRoundsActive]}>
+                  {lvl.rounds}
+                </Text>
+                <Text style={styles.darebeeDesc}>{lvl.desc}</Text>
               </TouchableOpacity>
             );
           })}
@@ -498,6 +526,47 @@ const styles = StyleSheet.create({
   },
   durationChipTextActive: {
     color: '#FFFFFF',
+  },
+  darebeeRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 20,
+  },
+  darebeeCard: {
+    flex: 1,
+    backgroundColor: '#161922',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: '#242A38',
+    alignItems: 'center',
+  },
+  darebeeCardActive: {
+    borderColor: '#F59E0B',
+    backgroundColor: '#1F1A12',
+  },
+  darebeeTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#D1D5DB',
+    marginBottom: 2,
+  },
+  darebeeTitleActive: {
+    color: '#FBBF24',
+  },
+  darebeeRounds: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#60A5FA',
+    marginBottom: 2,
+  },
+  darebeeRoundsActive: {
+    color: '#FCD34D',
+  },
+  darebeeDesc: {
+    fontSize: 10,
+    color: '#9CA3AF',
+    textAlign: 'center',
   },
   gearNoticeBox: {
     backgroundColor: '#141822',

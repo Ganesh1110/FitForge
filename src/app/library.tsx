@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   Wrench,
   Check,
+  User,
 } from 'lucide-react-native';
 
 import { Exercise } from '@/db/schema';
@@ -33,20 +34,21 @@ import { getExercisesForUserGarage } from '@/services/filter-service';
 import { useGarageStore } from '@/store/garage-store';
 import { speak, stopSpeech } from '@/services/speech-service';
 import { playCountdownBeep, playChime } from '@/services/sound-service';
+import { MuscleMap } from '@/components/muscle-map';
 
 const MUSCLE_GROUPS = [
-  'all',
-  'chest',
-  'back',
-  'lats',
-  'shoulders',
-  'biceps',
-  'triceps',
-  'quadriceps',
-  'hamstrings',
-  'glutes',
-  'abdominals',
-  'cardiovascular system',
+  { id: 'all', label: 'All Muscles' },
+  { id: 'chest', label: 'Chest' },
+  { id: 'shoulders', label: 'Shoulders' },
+  { id: 'biceps', label: 'Biceps' },
+  { id: 'triceps', label: 'Triceps' },
+  { id: 'abdominals', label: 'Abs & Core' },
+  { id: 'lats', label: 'Lats' },
+  { id: 'middle back', label: 'Upper Back' },
+  { id: 'quadriceps', label: 'Quads' },
+  { id: 'hamstrings', label: 'Hamstrings' },
+  { id: 'glutes', label: 'Glutes' },
+  { id: 'cardiovascular system', label: 'Cardio' },
 ];
 
 export default function LibraryScreen() {
@@ -58,6 +60,7 @@ export default function LibraryScreen() {
   const [search, setSearch] = useState('');
   const [selectedMuscle, setSelectedMuscle] = useState('all');
   const [onlyMyGear, setOnlyMyGear] = useState(true);
+  const [showAnatomyMap, setShowAnatomyMap] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
 
   const allowedKeys = getAllowedDbEquipmentKeys();
@@ -155,38 +158,69 @@ export default function LibraryScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Search Header */}
       <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View>
+        {/* Row 1: Title and Body Map Toggle */}
+        <View style={styles.titleRow}>
+          <View style={styles.titleWrapHeader}>
             <Text style={styles.headerTitle}>Exercise Library</Text>
             <Text style={styles.headerSubtitle}>
               {exercises.length} {onlyMyGear ? 'compatible home' : 'offline'} exercises
             </Text>
           </View>
 
-          {/* Garage Toggle Switch */}
-          <View style={styles.filterToggleRow}>
-            <Text style={styles.filterToggleLabel}>My Gear Only</Text>
+          <TouchableOpacity
+            style={[
+              styles.bodyMapToggleBtn,
+              showAnatomyMap && styles.bodyMapToggleBtnActive,
+            ]}
+            activeOpacity={0.7}
+            onPress={() => setShowAnatomyMap(!showAnatomyMap)}>
+            <User size={14} color={showAnatomyMap ? '#FFFFFF' : '#38BDF8'} />
+            <Text
+              style={[
+                styles.bodyMapToggleText,
+                showAnatomyMap && styles.bodyMapToggleTextActive,
+              ]}>
+              {showAnatomyMap ? 'Hide Anatomy' : 'Body Map'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Row 2: Search Bar + My Gear Toggle */}
+        <View style={styles.searchAndFilterRow}>
+          <View style={styles.searchBar}>
+            <Search size={17} color="#9CA3AF" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search exercises or muscles..."
+              placeholderTextColor="#6B7280"
+              value={search}
+              onChangeText={setSearch}
+              clearButtonMode="while-editing"
+            />
+          </View>
+
+          <View style={[styles.gearTogglePill, onlyMyGear && styles.gearTogglePillActive]}>
+            <Text style={[styles.gearToggleText, onlyMyGear && styles.gearToggleTextActive]}>
+              My Gear
+            </Text>
             <Switch
               value={onlyMyGear}
               onValueChange={setOnlyMyGear}
               trackColor={{ false: '#262A35', true: '#2563EB' }}
               thumbColor={onlyMyGear ? '#FFFFFF' : '#9CA3AF'}
+              style={{ transform: [{ scaleX: 0.75 }, { scaleY: 0.75 }], marginLeft: 2 }}
             />
           </View>
         </View>
-
-        <View style={styles.searchBar}>
-          <Search size={18} color="#9CA3AF" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search exercises or muscles..."
-            placeholderTextColor="#6B7280"
-            value={search}
-            onChangeText={setSearch}
-            clearButtonMode="while-editing"
-          />
-        </View>
       </View>
+
+      {/* Interactive MuscleWiki Body Anatomy Map */}
+      {showAnatomyMap && (
+        <MuscleMap
+          selectedMuscle={selectedMuscle}
+          onSelectMuscle={(m) => setSelectedMuscle(m)}
+        />
+      )}
 
       {/* Muscle Filter Scroll */}
       <View style={styles.filterSection}>
@@ -195,14 +229,14 @@ export default function LibraryScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterScroll}>
           {MUSCLE_GROUPS.map((m) => {
-            const active = selectedMuscle === m;
+            const active = selectedMuscle === m.id;
             return (
               <TouchableOpacity
-                key={m}
+                key={m.id}
                 style={[styles.filterChip, active && styles.filterChipActive]}
-                onPress={() => setSelectedMuscle(m)}>
+                onPress={() => setSelectedMuscle(m.id)}>
                 <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
-                  {m === 'all' ? 'All Muscles' : m.charAt(0).toUpperCase() + m.slice(1)}
+                  {m.label}
                 </Text>
               </TouchableOpacity>
             );
@@ -392,61 +426,103 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingTop: 8,
     paddingBottom: 8,
   },
-  headerTop: {
+  titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
+  },
+  titleWrapHeader: {
+    flex: 1,
+    marginRight: 10,
   },
   headerTitle: {
-    fontSize: 30,
+    fontSize: 26,
     fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: -0.7,
+    letterSpacing: -0.5,
   },
   headerSubtitle: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#94A3B8',
     marginTop: 2,
     fontWeight: '500',
   },
-  filterToggleRow: {
+  bodyMapToggleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     backgroundColor: '#141824',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#232B3E',
   },
-  filterToggleLabel: {
-    color: '#94A3B8',
+  bodyMapToggleBtnActive: {
+    backgroundColor: '#0284C7',
+    borderColor: '#38BDF8',
+  },
+  bodyMapToggleText: {
+    color: '#38BDF8',
     fontSize: 12,
     fontWeight: '700',
   },
+  bodyMapToggleTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  searchAndFilterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   searchBar: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#141824',
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 6,
     borderWidth: 1,
     borderColor: '#232B3E',
   },
   searchInput: {
     flex: 1,
-    marginLeft: 10,
-    fontSize: 15,
+    marginLeft: 8,
+    fontSize: 14,
     color: '#F3F4F6',
   },
+  gearTogglePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#141824',
+    paddingLeft: 10,
+    paddingRight: 4,
+    paddingVertical: 4,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#232B3E',
+  },
+  gearTogglePillActive: {
+    borderColor: '#2563EB',
+    backgroundColor: '#0F172A',
+  },
+  gearToggleText: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  gearToggleTextActive: {
+    color: '#38BDF8',
+    fontWeight: '800',
+  },
   filterSection: {
-    marginTop: 8,
+    marginTop: 6,
     marginBottom: 8,
   },
   filterScroll: {
@@ -476,7 +552,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 20,
-    paddingBottom: 120,
+    paddingBottom: 160,
     gap: 12,
     paddingTop: 8,
   },

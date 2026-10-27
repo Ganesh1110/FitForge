@@ -134,6 +134,7 @@ export async function getSavedWorkoutPlan(planId: string): Promise<GeneratedWork
     targetSplit: planRow.target_muscle,
     estimatedMinutes: planRow.duration_minutes,
     difficulty: 'intermediate',
+    totalRounds: exercises[0]?.sets || 3,
     exercises,
     equipmentUsed,
     generatedAt: planRow.created_at,

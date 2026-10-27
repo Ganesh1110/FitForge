@@ -217,7 +217,7 @@ export default function WorkoutPlayerScreen() {
         <View style={styles.exerciseHeadlineCard}>
           <Text style={styles.exerciseHeadlineName}>{currentExercise.exerciseName}</Text>
           <Text style={styles.setCounterText}>
-            Set {currentSetIndex} of {currentExercise.sets}
+            Round {currentSetIndex} of {currentExercise.sets} {plan.circuitLevel ? `• ${plan.circuitLevel.replace('_', ' ').toUpperCase()}` : '• Circuit Flow'}
           </Text>
         </View>
 
