@@ -232,36 +232,37 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F1115',
+    backgroundColor: '#0A0C11',
   },
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 12,
-    paddingBottom: 110,
+    paddingBottom: 120,
   },
   header: {
     marginBottom: 20,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#F9FAFB',
-    letterSpacing: -0.5,
+    fontSize: 30,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -0.7,
   },
   subtitle: {
     fontSize: 13,
-    color: '#9CA3AF',
+    color: '#94A3B8',
     marginTop: 2,
+    fontWeight: '500',
   },
   userCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    backgroundColor: '#161922',
-    borderRadius: 16,
+    backgroundColor: '#111520',
+    borderRadius: 20,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#242A38',
+    borderColor: '#1E2536',
     marginBottom: 24,
   },
   avatar: {
