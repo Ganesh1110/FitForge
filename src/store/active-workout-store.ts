@@ -4,14 +4,20 @@ import { getDatabase } from '@/db/database';
 import { playChime, playCountdownBeep, playRestChime } from '@/services/sound-service';
 import { speak } from '@/services/speech-service';
 import { useUserStore } from '@/store/user-store';
+import { recordMuscleTraining } from '@/services/recovery-service';
+import { checkAndSavePR } from '@/services/pr-service';
+import { SetType } from '@/db/schema';
 
 export type WorkoutPhase = 'prepare' | 'work' | 'rest' | 'complete';
 
 export interface SetLogRecord {
   exerciseId: string;
   setIndex: number;
+  setType: SetType;
   repsCompleted: number;
   weightKg?: number;
+  rpe?: number;
+  isPR?: boolean;
 }
 
 interface ActiveWorkoutState {
@@ -31,11 +37,18 @@ interface ActiveWorkoutState {
   elapsedTotalSeconds: number;
   completedSets: SetLogRecord[];
 
+  // Real-time custom adjustments per set (openGym Pro style)
+  currentSetWeightKg: number;
+  currentSetReps: number;
+  currentSetType: SetType;
+  lastAchievedPRMessage: string | null;
+
   // Actions
   startWorkout: (plan: GeneratedWorkoutPlan) => void;
   pauseWorkout: () => void;
   resumeWorkout: () => void;
   tick: () => void;
+  setWeightAndReps: (weightKg: number, reps: number, setType?: SetType) => void;
   markSetCompleted: () => void;
   skipPhaseOrExercise: () => void;
   previousExercise: () => void;
@@ -62,9 +75,16 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
   elapsedTotalSeconds: 0,
   completedSets: [],
 
+  currentSetWeightKg: 0,
+  currentSetReps: 10,
+  currentSetType: 'normal',
+  lastAchievedPRMessage: null,
+
   startWorkout: (plan) => {
     const now = Date.now();
     const targetEnd = now + PREPARE_DURATION_SECONDS * 1000;
+    const firstEx = plan.exercises[0];
+
     set({
       isActive: true,
       plan,
@@ -81,11 +101,22 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
       isPaused: false,
       elapsedTotalSeconds: 0,
       completedSets: [],
+      currentSetWeightKg: 0,
+      currentSetReps: firstEx?.reps || 10,
+      currentSetType: 'normal',
+      lastAchievedPRMessage: null,
     });
 
-    const firstEx = plan.exercises[0];
     playChime();
     speak(`Workout starting in 5 seconds. First up: ${firstEx?.exerciseName || 'First Exercise'}.`);
+  },
+
+  setWeightAndReps: (weightKg, reps, setType = 'normal') => {
+    set({
+      currentSetWeightKg: weightKg,
+      currentSetReps: reps,
+      currentSetType: setType,
+    });
   },
 
   pauseWorkout: () => {
@@ -117,16 +148,13 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
     if (!state.isActive || state.isPaused || state.phase === 'complete') return;
 
     const now = Date.now();
-    // Drift-safe remaining calculation
     const remaining = Math.max(0, Math.ceil((state.targetEndTime - now) / 1000));
-
-    // Drift-safe elapsed calculation
     const elapsed = Math.max(
       0,
       Math.floor((now - state.workoutStartTime - state.pausedTotalMs) / 1000)
     );
 
-    // Audio countdown cues at 3, 2, 1 - ONLY announce once per second!
+    // Audio countdown cues at 3, 2, 1 - only once per second!
     if (state.lastAnnouncedSecond !== remaining) {
       if (remaining === 3 || remaining === 2 || remaining === 1) {
         playCountdownBeep();
@@ -135,7 +163,6 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
     }
 
     if (remaining <= 0) {
-      // Auto-transition when timer runs out
       get().markSetCompleted();
     } else {
       set({
@@ -146,14 +173,14 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
     }
   },
 
-  markSetCompleted: () => {
+  markSetCompleted: async () => {
     const state = get();
     if (!state.plan) return;
 
     const currentEx = state.plan.exercises[state.currentExerciseIndex];
     if (!currentEx) return;
 
-    // If currently preparing, move to WORK phase
+    // Transition from PREPARE to WORK
     if (state.phase === 'prepare') {
       const workDuration = currentEx.exerciseId.includes('plank') ? currentEx.reps : 45;
       const targetEnd = Date.now() + workDuration * 1000;
@@ -164,6 +191,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
         phaseDurationSeconds: workDuration,
         targetEndTime: targetEnd,
         lastAnnouncedSecond: null,
+        currentSetReps: currentEx.reps,
       });
 
       playChime();
@@ -171,12 +199,34 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
       return;
     }
 
-    // If currently working, log set and move to REST or next set
+    // Transition from WORK to REST or COMPLETE
     if (state.phase === 'work') {
+      // Check for PR
+      let isPR = false;
+      let prMsg: string | null = null;
+      if (state.currentSetWeightKg > 0) {
+        try {
+          const prResult = await checkAndSavePR(
+            currentEx.exerciseId,
+            state.currentSetWeightKg,
+            state.currentSetReps
+          );
+          if (prResult.isMaxWeightPR || prResult.isOneRepMaxPR) {
+            isPR = true;
+            prMsg = `New PR: ${state.currentSetWeightKg} kg × ${state.currentSetReps} reps!`;
+          }
+        } catch (e) {
+          console.warn('PR check non-fatal error:', e);
+        }
+      }
+
       const newRecord: SetLogRecord = {
         exerciseId: currentEx.exerciseId,
         setIndex: state.currentSetIndex,
-        repsCompleted: currentEx.reps,
+        setType: state.currentSetType,
+        repsCompleted: state.currentSetReps,
+        weightKg: state.currentSetWeightKg,
+        isPR,
       };
 
       const isLastSet = state.currentSetIndex >= currentEx.sets;
@@ -188,6 +238,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
           phase: 'complete',
           completedSets: [...state.completedSets, newRecord],
           lastAnnouncedSecond: null,
+          lastAchievedPRMessage: prMsg,
         });
         playChime();
         speak('Workout complete! Outstanding effort!');
@@ -198,7 +249,6 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
       // Transition to REST
       const restDuration = currentEx.restSeconds || 45;
       const targetEnd = Date.now() + restDuration * 1000;
-
       const nextExercise = isLastSet
         ? state.plan.exercises[state.currentExerciseIndex + 1]
         : currentEx;
@@ -210,6 +260,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
         targetEndTime: targetEnd,
         completedSets: [...state.completedSets, newRecord],
         lastAnnouncedSecond: null,
+        lastAchievedPRMessage: prMsg,
       });
 
       playRestChime();
@@ -220,7 +271,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
       return;
     }
 
-    // If currently resting, move to WORK (either next set or next exercise)
+    // Transition from REST to WORK
     if (state.phase === 'rest') {
       const isLastSet = state.currentSetIndex >= currentEx.sets;
 
@@ -249,6 +300,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
         phaseDurationSeconds: workDuration,
         targetEndTime: targetEnd,
         lastAnnouncedSecond: null,
+        currentSetReps: nextEx.reps,
+        currentSetType: 'normal',
       });
 
       playChime();
@@ -276,6 +329,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
       phaseDurationSeconds: workDuration,
       targetEndTime: Date.now() + workDuration * 1000,
       lastAnnouncedSecond: null,
+      currentSetReps: prevEx.reps,
+      currentSetType: 'normal',
     });
 
     playCountdownBeep();
@@ -301,11 +356,11 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
       const now = new Date().toISOString();
       const totalMinutes = Math.max(1, Math.round(state.elapsedTotalSeconds / 60));
 
-      // Calculate calorie burn based on user's actual body weight (MET ~6.0 for circuit training)
       const { weightKg } = useUserStore.getState();
       const userWeight = weightKg || 75;
       const caloriesBurned = Math.round(((6.0 * 3.5 * userWeight) / 200) * totalMinutes);
 
+      // 1. Insert Workout Log
       await db.runAsync(
         `INSERT INTO workout_logs (id, workout_id, started_at, completed_at, total_duration_seconds, calories_burned)
          VALUES (?, ?, ?, ?, ?, ?)`,
@@ -318,6 +373,50 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()((set, get) => 
           caloriesBurned,
         ]
       );
+
+      // 2. Insert Logged Sets
+      for (let i = 0; i < state.completedSets.length; i++) {
+        const s = state.completedSets[i];
+        await db.runAsync(
+          `INSERT INTO logged_sets (id, workout_log_id, exercise_id, set_number, set_type, weight_kg, reps_completed, is_pr, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            `set-${logId}-${i}`,
+            logId,
+            s.exerciseId,
+            s.setIndex,
+            s.setType,
+            s.weightKg ?? 0,
+            s.repsCompleted,
+            s.isPR ? 1 : 0,
+            now,
+          ]
+        );
+      }
+
+      // 3. Update Muscle Recovery Logs
+      const trainedMuscles = new Set<string>();
+      if (state.plan.targetSplit) {
+        trainedMuscles.add(state.plan.targetSplit);
+      }
+      for (const ex of state.plan.exercises) {
+        if (ex.exerciseId.includes('squat') || ex.exerciseId.includes('lunge')) {
+          trainedMuscles.add('quadriceps');
+          trainedMuscles.add('glutes');
+        } else if (ex.exerciseId.includes('push') || ex.exerciseId.includes('bench')) {
+          trainedMuscles.add('chest');
+          trainedMuscles.add('triceps');
+        } else if (ex.exerciseId.includes('pull') || ex.exerciseId.includes('row')) {
+          trainedMuscles.add('lats');
+          trainedMuscles.add('biceps');
+        } else if (ex.exerciseId.includes('shoulder') || ex.exerciseId.includes('press')) {
+          trainedMuscles.add('shoulders');
+        } else if (ex.exerciseId.includes('crunch') || ex.exerciseId.includes('plank')) {
+          trainedMuscles.add('abdominals');
+        }
+      }
+
+      await recordMuscleTraining(Array.from(trainedMuscles), state.completedSets.length);
     } catch (e) {
       console.warn('Failed to record workout log:', e);
     }

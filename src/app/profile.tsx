@@ -6,6 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Share,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -21,6 +23,8 @@ import {
   Plus,
   Minus,
   Activity,
+  FileSpreadsheet,
+  FileJson,
 } from 'lucide-react-native';
 
 import {
@@ -36,6 +40,7 @@ import { syncWithFreeExerciseDb } from '@/db/seeder';
 import { speak } from '@/services/speech-service';
 import { playChime } from '@/services/sound-service';
 import { OnboardingModal } from '@/components/onboarding-modal';
+import { exportDatabaseToJson, exportWorkoutsToCsv } from '@/services/portability-service';
 
 const GOAL_OPTIONS: { id: FitnessGoal; label: string; desc: string }[] = [
   { id: 'hypertrophy', label: 'Muscle Build', desc: 'Hypertrophy rep ranges (8-12)' },
@@ -106,6 +111,30 @@ export default function ProfileScreen() {
   const handleTestAudio = () => {
     playChime();
     speak('FitForge voice guidance is active.');
+  };
+
+  const handleExportCsv = async () => {
+    try {
+      const csv = await exportWorkoutsToCsv();
+      await Share.share({
+        title: 'FitForge_Workouts.csv',
+        message: csv,
+      });
+    } catch (e: any) {
+      Alert.alert('Export Failed', e.message || 'Unable to generate CSV.');
+    }
+  };
+
+  const handleExportJson = async () => {
+    try {
+      const json = await exportDatabaseToJson();
+      await Share.share({
+        title: 'FitForge_Backup.json',
+        message: json,
+      });
+    } catch (e: any) {
+      Alert.alert('Export Failed', e.message || 'Unable to generate JSON backup.');
+    }
   };
 
   return (
@@ -320,6 +349,42 @@ export default function ProfileScreen() {
               </>
             )}
           </TouchableOpacity>
+        </View>
+
+        {/* openGym Grade: Data Portability & Backup */}
+        <Text style={styles.sectionTitle}>Data Portability & Backup (openGym Grade)</Text>
+        <View style={styles.portabilityCard}>
+          <Text style={styles.portabilityDesc}>
+            FitForge enforces 100% offline data sovereignty. Export your workout history anytime to standard CSV compatible with Strong, Hevy, and openGym, or create a full JSON snapshot.
+          </Text>
+
+          <View style={styles.exportBtnRow}>
+            <TouchableOpacity
+              style={styles.exportBtn}
+              onPress={handleExportCsv}
+              activeOpacity={0.8}>
+              <View style={[styles.exportIconBox, { backgroundColor: '#0284C722' }]}>
+                <FileSpreadsheet size={18} color="#38BDF8" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.exportBtnTitle}>Export CSV</Text>
+                <Text style={styles.exportBtnSub}>Strong & Hevy format</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.exportBtn}
+              onPress={handleExportJson}
+              activeOpacity={0.8}>
+              <View style={[styles.exportIconBox, { backgroundColor: '#05966922' }]}>
+                <FileJson size={18} color="#10B981" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.exportBtnTitle}>JSON Snapshot</Text>
+                <Text style={styles.exportBtnSub}>Full database backup</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Audio Engine Check */}
@@ -683,5 +748,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 4,
+  },
+  portabilityCard: {
+    backgroundColor: '#111520',
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#1E2536',
+    marginBottom: 24,
+  },
+  portabilityDesc: {
+    color: '#94A3B8',
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  exportBtnRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  exportBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#161C2A',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#242F46',
+  },
+  exportIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exportBtnTitle: {
+    color: '#F8FAFC',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  exportBtnSub: {
+    color: '#94A3B8',
+    fontSize: 10,
+    fontWeight: '500',
+    marginTop: 1,
   },
 });

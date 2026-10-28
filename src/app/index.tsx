@@ -27,6 +27,7 @@ import { useActiveWorkoutStore } from '@/store/active-workout-store';
 import { generateWorkout } from '@/ai/workout-service';
 import { calculateEquipmentCoverage, EquipmentCoverage } from '@/services/filter-service';
 import { OnboardingModal } from '@/components/onboarding-modal';
+import { MuscleRecoveryCard } from '@/components/muscle-recovery-card';
 import { playChime } from '@/services/sound-service';
 import { speak } from '@/services/speech-service';
 
@@ -137,6 +138,9 @@ export default function HomeScreen() {
             <Text style={styles.metricLabel}>Gear Coverage</Text>
           </View>
         </View>
+
+        {/* Real-time Muscle Recovery & Fatigue Tracker (openGym Grade) */}
+        <MuscleRecoveryCard />
 
         {/* Today's Recommended Routine Card */}
         <View style={styles.sectionHeader}>

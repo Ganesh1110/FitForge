@@ -34,6 +34,8 @@ export interface WorkoutPlan {
   exercises: WorkoutExercise[];
 }
 
+export type SetType = 'normal' | 'warmup' | 'dropset' | 'failure';
+
 export interface WorkoutExercise {
   id: string;
   workout_id: string;
@@ -53,4 +55,33 @@ export interface WorkoutLog {
   completed_at: string;
   total_duration_seconds: number;
   calories_burned?: number;
+}
+
+export interface LoggedSet {
+  id: string;
+  workout_log_id: string;
+  exercise_id: string;
+  set_number: number;
+  set_type: SetType;
+  weight_kg?: number;
+  reps_completed: number;
+  rpe?: number;
+  is_pr?: boolean;
+  created_at: string;
+}
+
+export interface PersonalRecord {
+  id: string;
+  exercise_id: string;
+  record_type: 'max_weight' | 'estimated_1rm' | 'max_reps' | 'max_volume';
+  value: number;
+  weight_kg: number;
+  reps: number;
+  achieved_at: string;
+}
+
+export interface MuscleRecoveryLog {
+  muscle_id: string;
+  last_trained_at: string;
+  sets_performed: number;
 }

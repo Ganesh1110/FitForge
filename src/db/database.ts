@@ -79,7 +79,38 @@ async function initializeTables(db: SQLite.SQLiteDatabase): Promise<void> {
       calories_burned INTEGER
     );
 
+    CREATE TABLE IF NOT EXISTS logged_sets (
+      id TEXT PRIMARY KEY,
+      workout_log_id TEXT NOT NULL,
+      exercise_id TEXT NOT NULL,
+      set_number INTEGER NOT NULL,
+      set_type TEXT NOT NULL DEFAULT 'normal',
+      weight_kg REAL,
+      reps_completed INTEGER NOT NULL,
+      rpe REAL,
+      is_pr INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS personal_records (
+      id TEXT PRIMARY KEY,
+      exercise_id TEXT NOT NULL,
+      record_type TEXT NOT NULL,
+      value REAL NOT NULL,
+      weight_kg REAL NOT NULL,
+      reps INTEGER NOT NULL,
+      achieved_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS muscle_recovery_logs (
+      muscle_id TEXT PRIMARY KEY,
+      last_trained_at TEXT NOT NULL,
+      sets_performed INTEGER NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_exercises_equipment ON exercises(equipment);
     CREATE INDEX IF NOT EXISTS idx_exercises_category ON exercises(category);
+    CREATE INDEX IF NOT EXISTS idx_logged_sets_exercise ON logged_sets(exercise_id);
+    CREATE INDEX IF NOT EXISTS idx_personal_records_exercise ON personal_records(exercise_id);
   `);
 }
